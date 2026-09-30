@@ -144,6 +144,9 @@
             <Setter Property="Minimum" Value="-100"/>
             <Setter Property="Maximum" Value="12"/>
             <Setter Property="TickFrequency" Value="6"/>
+            <!-- Arrows and clicks on the track move 1 dB; Page Up/Down (6 dB) is handled in ChannelStrip. -->
+            <Setter Property="SmallChange" Value="1"/>
+            <Setter Property="LargeChange" Value="1"/>
             <Setter Property="TickPlacement" Value="TopLeft"/>
             <Setter Property="Margin" Value="0,4,0,4"/>
             <Setter Property="LayoutTransform">

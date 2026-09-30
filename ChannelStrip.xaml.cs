@@ -180,6 +180,16 @@ public partial class ChannelStrip : UserControl
         GainChanged?.Invoke(e.NewValue);
     }
 
+    // Page Up/Down jump 6 dB from the keyboard only: LargeChange stays 1 dB so an
+    // accidental click on the fader track cannot cause a big level jump on air.
+    private void Fader_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.PageUp or Key.PageDown))
+            return;
+        GainDb = Fader.Value + (e.Key == Key.PageUp ? 6 : -6);
+        e.Handled = true;
+    }
+
     private void Fader_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         GainDb = 0;

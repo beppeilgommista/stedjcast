@@ -431,7 +431,17 @@ public partial class MainWindow : Window
         else
         {
             valueText.Text = parameter.NormalizedValue.ToString("0.00");
-            var slider = new Slider { Minimum = 0, Maximum = 1, Value = parameter.NormalizedValue, VerticalAlignment = VerticalAlignment.Center };
+            // The default LargeChange (1) made Page Up or a click on the track jump the whole range.
+            var step = parameter.StepCount > 1 ? 1.0 / parameter.StepCount : 0.01;
+            var slider = new Slider
+            {
+                Minimum = 0,
+                Maximum = 1,
+                Value = parameter.NormalizedValue,
+                SmallChange = step,
+                LargeChange = parameter.StepCount > 1 ? step : 0.1,
+                VerticalAlignment = VerticalAlignment.Center
+            };
             AutomationProperties.SetName(slider, label);
             slider.ValueChanged += (_, e) =>
             {

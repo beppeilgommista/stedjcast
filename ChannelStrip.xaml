@@ -33,6 +33,7 @@
                 <ProgressBar x:Name="Meter" DockPanel.Dock="Right" Style="{StaticResource MeterStyle}"/>
                 <Slider x:Name="Fader" Style="{StaticResource FaderStyle}"
                         ValueChanged="Fader_ValueChanged"
+                        PreviewKeyDown="Fader_PreviewKeyDown"
                         PreviewMouseDoubleClick="Fader_PreviewMouseDoubleClick"/>
             </DockPanel>
 
