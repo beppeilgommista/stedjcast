@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+publish/
+*.zip
+
+# IDE / tooling
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.agents/
+
+# Runtime artifacts
+*.log
+*.wav
+
+# Local notes that may contain server credentials
+configurazione_stream.txt

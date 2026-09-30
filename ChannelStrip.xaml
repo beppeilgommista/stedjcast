@@ -1,0 +1,43 @@
+<!-- One mixer channel: colored header, 3 VST3 slots, gain field, fader + meter, mute button. -->
+<UserControl x:Class="Stedjcast.ChannelStrip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource CardStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="Header" CornerRadius="8" Padding="0,6" Margin="0,0,0,10">
+                <TextBlock x:Name="TitleText" FontSize="22" FontWeight="Bold" Foreground="White"
+                           HorizontalAlignment="Center"/>
+            </Border>
+
+            <!-- Filled in code: one row per slot (bypass | plugin | remove). -->
+            <StackPanel x:Name="SlotsPanel" Grid.Row="1" Margin="0,0,0,8"/>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,8">
+                <TextBox x:Name="GainBox" Style="{StaticResource GainBoxStyle}"
+                         PreviewKeyDown="GainBox_PreviewKeyDown"
+                         LostFocus="GainBox_LostFocus"
+                         PreviewMouseDoubleClick="GainBox_PreviewMouseDoubleClick"/>
+                <TextBlock Text=" dB" VerticalAlignment="Center" Foreground="{StaticResource SubtleTextBrush}"/>
+            </StackPanel>
+
+            <!-- Double click on fader or gain field = 0 dB. -->
+            <DockPanel Grid.Row="3" HorizontalAlignment="Center">
+                <ProgressBar x:Name="Meter" DockPanel.Dock="Right" Style="{StaticResource MeterStyle}"/>
+                <Slider x:Name="Fader" Style="{StaticResource FaderStyle}"
+                        ValueChanged="Fader_ValueChanged"
+                        PreviewMouseDoubleClick="Fader_PreviewMouseDoubleClick"/>
+            </DockPanel>
+
+            <Button x:Name="MuteButton" Grid.Row="4" Style="{StaticResource MuteButtonStyle}"
+                    Click="MuteButton_Click"/>
+        </Grid>
+    </Border>
+</UserControl>

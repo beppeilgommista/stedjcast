@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.3.0</Version>
+    <Product>Stedjcast</Product>
+    <Authors>beppeilgommista</Authors>
+    <Description>Stedjcast - Shoutcast web radio broadcaster</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="3.1.0" />
+    <PackageReference Include="NAudio.Lame" Version="2.1.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+    <PackageReference Include="Vst3HostSharp" Version="1.0.568-r" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(NuGetPackageRoot)vst3hostsharp\1.0.568-r\runtimes\win-x64\native\Vst3Pont.dll"
+          Link="Vst3Pont.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <!-- VC++ runtime required by Vst3Pont.dll, shipped next to the exe (app-local deployment,
+         allowed by Microsoft): works on PCs without the redistributable installed. -->
+    <None Include="$(SystemRoot)\System32\msvcp140.dll;$(SystemRoot)\System32\vcruntime140.dll;$(SystemRoot)\System32\vcruntime140_1.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <!-- Binary redistribution of the MIT/BSD components requires shipping their notices. -->
+    <None Include="LICENSE;THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Files brought in by the packages that this x64 app never uses. -->
+  <Target Name="RemoveUnusedPublishFiles" AfterTargets="Publish">
+    <Delete Files="$(PublishDir)ProbeVst3_win.exe;$(PublishDir)libmp3lame.32.dll" />
+  </Target>
+
+</Project>
