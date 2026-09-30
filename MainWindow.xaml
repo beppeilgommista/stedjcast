@@ -175,6 +175,12 @@
                             <StackPanel>
                                 <TextBlock Text="Options" Style="{StaticResource SectionTitleStyle}"/>
 
+                                <TextBlock Text="Microphone mute shortcut (click the field and press the keys; Delete clears it)"
+                                           Style="{StaticResource FieldLabelStyle}"/>
+                                <TextBox x:Name="MuteShortcutBox" IsReadOnly="True" MaxWidth="300" HorizontalAlignment="Left"
+                                         MinWidth="220" PreviewKeyDown="MuteShortcutBox_PreviewKeyDown"
+                                         AutomationProperties.Name="Microphone mute shortcut. Press a key combination with Ctrl, Alt, Shift or Windows, or Delete to clear it"/>
+
                                 <CheckBox x:Name="AutoStartCheck" Content="Go live automatically on startup"/>
                                 <CheckBox x:Name="TestModeCheck" Content="Local test mode: save WAV files to Music\Stedjcast, don't broadcast"/>
                                 <CheckBox x:Name="LoggingCheck" Content="Enable technical log"/>

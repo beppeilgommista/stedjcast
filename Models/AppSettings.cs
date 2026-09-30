@@ -25,6 +25,9 @@ public sealed class AppSettings
     public string Url { get; set; } = "";
     public string Genre { get; set; } = "";
 
+    /// <summary>Global shortcut toggling the microphone mute, in KeyGesture text form (e.g. "Ctrl+Alt+K").</summary>
+    public string MuteShortcut { get; set; } = "Ctrl+Alt+K";
+
     public bool TestMode { get; set; }
     public bool AutoStartStream { get; set; }
     public bool LoggingEnabled { get; set; }

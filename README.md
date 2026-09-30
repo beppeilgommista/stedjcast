@@ -16,8 +16,8 @@ sent to the server over a Shoutcast source connection.
 - Three channels (MIC, PC AUDIO, MASTER) with fader, level meter and mute.
 - Up to 3 VST3 plugins per channel, picked from a scanned folder, with bypass and a
   generic parameter panel. Legacy VST2 plugins are filtered out.
-- Microphone mute synchronized with the Windows system mute, plus a global Win+Alt+K
-  shortcut.
+- Microphone mute synchronized with the Windows system mute, plus a configurable global
+  shortcut (default Ctrl+Alt+K).
 - MP3 streaming to Shoutcast v1/v2 with automatic reconnection when the connection drops.
 - Local test mode that records WAV files instead of streaming.
 - Settings stored in `%LocalAppData%\Stedjcast\settings.json`; the source password is

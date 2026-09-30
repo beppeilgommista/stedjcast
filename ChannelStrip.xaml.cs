@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -16,6 +17,7 @@ public partial class ChannelStrip : UserControl
     private readonly Button[] _slotButtons = new Button[Vst3Chain.SlotCount];
     private readonly Button[] _bypassButtons = new Button[Vst3Chain.SlotCount];
     private readonly Button[] _removeButtons = new Button[Vst3Chain.SlotCount];
+    private readonly string[] _slotStates = ["empty, press to add a plugin", "empty, press to add a plugin", "empty, press to add a plugin"];
     private string _channelName = "";
     private bool _muted;
     private float _displayedLevel;
@@ -78,7 +80,7 @@ public partial class ChannelStrip : UserControl
             AutomationProperties.SetName(Meter, $"{value} level");
             for (var slot = 0; slot < Vst3Chain.SlotCount; slot++)
             {
-                AutomationProperties.SetName(_slotButtons[slot], $"{value} slot {slot + 1}, click to add or open a plugin");
+                UpdateSlotName(slot);
                 AutomationProperties.SetName(_bypassButtons[slot], $"{value} slot {slot + 1} bypass");
                 AutomationProperties.SetName(_removeButtons[slot], $"{value} slot {slot + 1} remove");
             }
@@ -129,9 +131,23 @@ public partial class ChannelStrip : UserControl
         button.Background = App.Brush(!loaded ? "#F7F9FB" : bypassed ? "#F3F4F6" : "#DBEAFE");
         button.Foreground = App.Brush(!loaded || bypassed ? "#6B7280" : "#1E3A8A");
 
+        _slotStates[slot] = !loaded ? "empty, press to add a plugin"
+            : bypassed ? $"{effect!.DisplayName}, bypassed, press to open parameters"
+            : $"{effect!.DisplayName}, press to open parameters";
+        UpdateSlotName(slot);
+
         _bypassButtons[slot].IsEnabled = loaded;
         _bypassButtons[slot].Background = App.Brush(bypassed ? "#F59E0B" : "#F7F9FB");
     }
+
+    private void UpdateSlotName(int slot) =>
+        AutomationProperties.SetName(_slotButtons[slot], $"{_channelName} slot {slot + 1}: {_slotStates[slot]}");
+
+    // Spoken by screen readers only; nothing changes on screen.
+    public void AnnounceMute() =>
+        UIElementAutomationPeer.CreatePeerForElement(MuteButton).RaiseNotificationEvent(
+            AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent,
+            _muted ? $"{_channelName} muted" : $"{_channelName} on", "MuteChanged");
 
     private Button SideButton(string content, string toolTip, Thickness margin, Action onClick)
     {

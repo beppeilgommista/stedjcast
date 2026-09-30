@@ -5,7 +5,9 @@ using System.Media;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -19,9 +21,7 @@ public partial class MainWindow : Window
     private const int ReconnectBaseSeconds = 5;
     private const int MicrophoneHotKeyId = 0x5301;
     private const int WmHotKey = 0x0312;
-    private const uint ModAlt = 0x0001;
-    private const uint ModWin = 0x0008;
-    private const uint VkK = 0x4B;
+    private const uint ModNoRepeat = 0x4000;
 
     private readonly AudioEngine _audio = new();
     private readonly ShoutcastStreamer _streamer = new();
@@ -59,7 +59,10 @@ public partial class MainWindow : Window
         _audio.SystemMicMuteChanged += muted => Dispatcher.BeginInvoke(() =>
         {
             if (_settings.Microphone.Muted != muted)
+            {
                 SetMuted("mic", muted, syncSystemMute: false);
+                _strips["mic"].AnnounceMute();
+            }
         });
         _streamer.Disconnected += OnStreamDisconnected;
 
@@ -74,12 +77,76 @@ public partial class MainWindow : Window
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        var handle = new WindowInteropHelper(this).Handle;
-        _windowSource = HwndSource.FromHwnd(handle);
+        _windowSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
         _windowSource?.AddHook(WindowMessageHook);
+        ApplyMuteShortcut(showErrors: false);
+    }
 
-        if (!RegisterHotKey(handle, MicrophoneHotKeyId, ModWin | ModAlt, VkK))
-            LoggingService.Write("Unable to register the global Win+Alt+K shortcut.");
+    /// <summary>Registers <see cref="AppSettings.MuteShortcut"/> as a global hotkey; false if Windows
+    /// or another app already owns that combination.</summary>
+    private bool ApplyMuteShortcut(bool showErrors)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        UnregisterHotKey(handle, MicrophoneHotKeyId);
+        if (string.IsNullOrEmpty(_settings.MuteShortcut))
+            return true;
+
+        try
+        {
+            var gesture = (KeyGesture)new KeyGestureConverter().ConvertFromInvariantString(_settings.MuteShortcut)!;
+            // WPF's ModifierKeys values (Alt=1, Control=2, Shift=4, Windows=8) are the MOD_* flags RegisterHotKey expects.
+            var modifiers = (uint)gesture.Modifiers | ModNoRepeat;
+            if (RegisterHotKey(handle, MicrophoneHotKeyId, modifiers, (uint)KeyInterop.VirtualKeyFromKey(gesture.Key)))
+                return true;
+        }
+        catch (Exception exception) when (exception is NotSupportedException or ArgumentException)
+        {
+            // Unreadable saved value: reported below like an unavailable shortcut.
+        }
+
+        LoggingService.Write($"Unable to register the microphone mute shortcut {_settings.MuteShortcut}.");
+        if (showErrors)
+        {
+            MessageBox.Show(
+                $"The shortcut {_settings.MuteShortcut} is already used by Windows or another app. Choose a different combination.",
+                "Microphone mute shortcut", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        return false;
+    }
+
+    private void MuteShortcutBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var modifiers = Keyboard.Modifiers;
+
+        if (modifiers == ModifierKeys.None && key is Key.Delete or Key.Back)
+        {
+            MuteShortcutBox.Text = "";
+        }
+        else if (key == Key.Tab ||
+                 modifiers == ModifierKeys.None ||
+                 key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
+                        Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
+        {
+            // Tab keeps moving focus; a lone modifier, or a key without modifiers (it would
+            // steal that key from every other app), is not a usable global shortcut.
+            return;
+        }
+        else
+        {
+            try
+            {
+                MuteShortcutBox.Text = new KeyGestureConverter().ConvertToInvariantString(new KeyGesture(key, modifiers))!;
+            }
+            catch (NotSupportedException)
+            {
+                return;
+            }
+        }
+
+        e.Handled = true;
+        _settings.MuteShortcut = MuteShortcutBox.Text;
+        ApplyMuteShortcut(showErrors: true);
     }
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -87,6 +154,7 @@ public partial class MainWindow : Window
         if (message == WmHotKey && wParam.ToInt32() == MicrophoneHotKeyId)
         {
             SetMuted("mic", !_settings.Microphone.Muted);
+            _strips["mic"].AnnounceMute();
             handled = true;
         }
 
@@ -418,6 +486,7 @@ public partial class MainWindow : Window
         DescriptionBox.Text = _settings.Description;
         UrlBox.Text = _settings.Url;
         GenreBox.Text = _settings.Genre;
+        MuteShortcutBox.Text = _settings.MuteShortcut;
         AutoStartCheck.IsChecked = _settings.AutoStartStream;
         TestModeCheck.IsChecked = _settings.TestMode;
         LoggingCheck.IsChecked = _settings.LoggingEnabled;
@@ -454,6 +523,7 @@ public partial class MainWindow : Window
             _settings.Description = DescriptionBox.Text.Trim();
             _settings.Url = UrlBox.Text.Trim();
             _settings.Genre = GenreBox.Text.Trim();
+            _settings.MuteShortcut = MuteShortcutBox.Text;
             _settings.AutoStartStream = AutoStartCheck.IsChecked == true;
             _settings.TestMode = TestModeCheck.IsChecked == true;
             _settings.LoggingEnabled = LoggingCheck.IsChecked == true;
@@ -604,6 +674,10 @@ public partial class MainWindow : Window
         };
         StatusBanner.Background = App.Brush(background);
         StatusText.Foreground = App.Brush(foreground);
+
+        // WPF does not raise this by itself; without a listening screen reader it is a no-op.
+        if (AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged))
+            UIElementAutomationPeer.CreatePeerForElement(StatusText).RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     private static void LogError(string context, Exception exception) =>
