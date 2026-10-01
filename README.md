@@ -14,8 +14,10 @@ sent to the server over a Shoutcast source connection.
 ## Features
 
 - Three channels (MIC, PC AUDIO, MASTER) with fader, level meter and mute.
-- Up to 3 VST3 plugins per channel, picked from a scanned folder, with bypass and a
-  generic parameter panel. Legacy VST2 plugins are filtered out.
+- Up to 3 VST3 plugins per channel, picked from a scanned folder, with bypass. Each
+  plugin opens in its own window, with a generic parameter panel as an alternative.
+  Plugin settings are saved and restored at the next start. Legacy VST2 plugins are
+  filtered out.
 - Microphone mute synchronized with the Windows system mute, plus a configurable global
   shortcut (default Ctrl+Alt+K).
 - MP3 streaming to Shoutcast v1/v2 with automatic reconnection when the connection drops.
@@ -25,10 +27,10 @@ sent to the server over a Shoutcast source connection.
 
 ## Limitations
 
-- Plugins' native GUIs are not available: the VST3 hosting library crashes when opening
-  them, so only the generic parameter panel is provided.
+- Plugins run inside the app's process: a plugin that crashes closes the app.
+- Plugin windows have a fixed size, and plugins that don't handle display scaling
+  themselves may look small on high-DPI screens.
 - Some commercial plugins with copy protection may fail to load.
-- Plugin parameters are not saved between sessions.
 - No server connection test before going live.
 - The two capture devices run on separate clocks: no drift compensation beyond dropping
   backlog past 1 second.

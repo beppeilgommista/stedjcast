@@ -7,8 +7,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PlatformTarget>x64</PlatformTarget>
+    <!-- VST3 hosting calls plugin vtables through function pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Product>Stedjcast</Product>
     <Authors>beppeilgommista</Authors>
     <Description>Stedjcast - Shoutcast web radio broadcaster</Description>
@@ -18,16 +20,11 @@
     <PackageReference Include="NAudio" Version="3.1.0" />
     <PackageReference Include="NAudio.Lame" Version="2.1.0" />
     <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
-    <PackageReference Include="Vst3HostSharp" Version="1.0.568-r" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="$(NuGetPackageRoot)vst3hostsharp\1.0.568-r\runtimes\win-x64\native\Vst3Pont.dll"
-          Link="Vst3Pont.dll"
-          CopyToOutputDirectory="PreserveNewest"
-          Visible="false" />
-    <!-- VC++ runtime required by Vst3Pont.dll, shipped next to the exe (app-local deployment,
-         allowed by Microsoft): works on PCs without the redistributable installed. -->
+    <!-- VC++ runtime shipped next to the exe (app-local deployment, allowed by Microsoft):
+         plugins built against the dynamic runtime load on PCs without the redistributable. -->
     <None Include="$(SystemRoot)\System32\msvcp140.dll;$(SystemRoot)\System32\vcruntime140.dll;$(SystemRoot)\System32\vcruntime140_1.dll"
           CopyToOutputDirectory="PreserveNewest"
           Visible="false" />
@@ -37,7 +34,7 @@
 
   <!-- Files brought in by the packages that this x64 app never uses. -->
   <Target Name="RemoveUnusedPublishFiles" AfterTargets="Publish">
-    <Delete Files="$(PublishDir)ProbeVst3_win.exe;$(PublishDir)libmp3lame.32.dll" />
+    <Delete Files="$(PublishDir)libmp3lame.32.dll" />
   </Target>
 
 </Project>

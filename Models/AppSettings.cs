@@ -61,4 +61,8 @@ public sealed class PluginSlotSettings
 {
     public string Path { get; set; } = "";
     public bool Bypassed { get; set; }
+
+    /// <summary>The plugin's own saved settings (opaque bytes, stored as base64).</summary>
+    public byte[]? State { get; set; }
+    public byte[]? ControllerState { get; set; }
 }

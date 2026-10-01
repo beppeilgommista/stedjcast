@@ -132,8 +132,8 @@ public partial class ChannelStrip : UserControl
         button.Foreground = App.Brush(!loaded || bypassed ? "#6B7280" : "#1E3A8A");
 
         _slotStates[slot] = !loaded ? "empty, press to add a plugin"
-            : bypassed ? $"{effect!.DisplayName}, bypassed, press to open parameters"
-            : $"{effect!.DisplayName}, press to open parameters";
+            : bypassed ? $"{effect!.DisplayName}, bypassed, press for the plugin window or generic controls"
+            : $"{effect!.DisplayName}, press for the plugin window or generic controls";
         UpdateSlotName(slot);
 
         _bypassButtons[slot].IsEnabled = loaded;

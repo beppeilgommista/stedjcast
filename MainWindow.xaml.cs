@@ -246,15 +246,15 @@ public partial class MainWindow : Window
                 var effect = _audio.Channel(key).Plugins.Slot(slot);
                 try
                 {
-                    effect.Load(saved.Path, AudioEngine.SampleRate);
+                    var state = saved.State is null ? null : new Vst3State(saved.State, saved.ControllerState ?? []);
+                    effect.Load(saved.Path, AudioEngine.SampleRate, state);
                     effect.Bypassed = saved.Bypassed;
                 }
                 catch (Exception exception)
                 {
                     // A saved plugin that no longer loads (uninstalled, moved) only empties its slot.
                     LoggingService.Write($"VST3 {key} slot {slot + 1} not loaded ({saved.Path}): {exception.Message}");
-                    saved.Path = "";
-                    saved.Bypassed = false;
+                    _settings.Channel(key).Plugins[slot] = new PluginSlotSettings();
                 }
 
                 strip.SetSlot(slot, effect);
@@ -266,7 +266,7 @@ public partial class MainWindow : Window
     {
         if (_audio.Channel(key).Plugins.Slot(slot).IsLoaded)
         {
-            OpenParameterWindow(key, slot);
+            ShowLoadedPluginMenu(key, slot, anchor);
             return;
         }
 
@@ -328,10 +328,9 @@ public partial class MainWindow : Window
         {
             CloseParameterWindow(key, slot);
             effect.Load(path, AudioEngine.SampleRate);
-            saved.Path = path;
-            saved.Bypassed = false;
+            _settings.Channel(key).Plugins[slot] = new PluginSlotSettings { Path = path };
             SettingsService.Save(_settings);
-            OpenParameterWindow(key, slot);
+            OpenPluginWindow(key, slot);
         }
         catch (Exception exception)
         {
@@ -363,7 +362,63 @@ public partial class MainWindow : Window
         SettingsService.Save(_settings);
     }
 
-    // Generic parameter panel: the plugins' native GUI can't be used (see Vst3Effect.GetParameters).
+    // A loaded slot offers the plugin's own window and the generic controls, which stay
+    // available because native plugin GUIs are rarely usable with keyboard or screen readers.
+    private void ShowLoadedPluginMenu(string key, int slot, Button anchor)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor };
+        var pluginWindow = new MenuItem { Header = "Plugin window" };
+        pluginWindow.Click += (_, _) => OpenPluginWindow(key, slot);
+        var genericControls = new MenuItem { Header = "Generic controls" };
+        genericControls.Click += (_, _) => OpenParameterWindow(key, slot);
+        menu.Items.Add(pluginWindow);
+        menu.Items.Add(genericControls);
+        menu.IsOpen = true;
+    }
+
+    /// <summary>The plugin's own GUI, or the generic controls when it has none.</summary>
+    private void OpenPluginWindow(string key, int slot)
+    {
+        var effect = _audio.Channel(key).Plugins.Slot(slot);
+        try
+        {
+            var title = $"Stedjcast - {_strips[key].Title} #{slot + 1} - {effect.DisplayName}";
+            if (effect.ShowEditor(title, this, SavePluginStates))
+                return;
+        }
+        catch (Exception exception)
+        {
+            LogError($"VST3 editor {key} slot {slot + 1}", exception);
+        }
+        OpenParameterWindow(key, slot);
+    }
+
+    // Plugins serialize their own settings; they are stored with the slot and restored
+    // when the plugin is loaded again.
+    private void SavePluginStates()
+    {
+        foreach (var key in _strips.Keys)
+        {
+            for (var slot = 0; slot < Vst3Chain.SlotCount; slot++)
+            {
+                var saved = _settings.Channel(key).Plugins[slot];
+                try
+                {
+                    if (_audio.Channel(key).Plugins.Slot(slot).GetState() is { } state)
+                    {
+                        saved.State = state.Component;
+                        saved.ControllerState = state.Controller;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    LogError($"VST3 state {key} slot {slot + 1}", exception);
+                }
+            }
+        }
+        SettingsService.Save(_settings);
+    }
+
     private void OpenParameterWindow(string key, int slot)
     {
         if (_parameterWindows.TryGetValue((key, slot), out var existing))
@@ -396,7 +451,11 @@ public partial class MainWindow : Window
             Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }
         };
 
-        window.Closed += (_, _) => _parameterWindows.Remove((key, slot));
+        window.Closed += (_, _) =>
+        {
+            _parameterWindows.Remove((key, slot));
+            SavePluginStates();
+        };
         _parameterWindows[(key, slot)] = window;
         window.Show();
     }
@@ -704,7 +763,7 @@ public partial class MainWindow : Window
         }
 
         ReadSettingsForm(showErrors: false);
-        SettingsService.Save(_settings);
+        SavePluginStates();
 
         _meterTimer.Stop();
         _reconnectCts?.Cancel();

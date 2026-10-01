@@ -1,17 +1,19 @@
-using Vst3HostSharp;
-using static Vst3HostSharp.StructsAndEnums;
 using System.IO;
+using System.Windows;
 
 namespace Stedjcast.Services;
 
-/// <summary>A plugin parameter, for the generic parameter panel.</summary>
-public sealed record Vst3ParameterInfo(uint Id, string Title, string Units, int StepCount, double NormalizedValue);
+/// <summary>The saved state of a plugin, as the plugin itself serializes it.</summary>
+public sealed record Vst3State(byte[] Component, byte[] Controller);
 
+/// <summary>One plugin slot: a VST3 effect with bypass, fed from the audio thread.</summary>
 public sealed class Vst3Effect : IDisposable
 {
+    private const int BlockFrames = 512;
+
     private readonly object _sync = new();
-    private Vst3Plugin? _plugin;
-    private int _blockFrames;
+    private Vst3PluginInstance? _plugin;
+    private Vst3EditorWindow? _editor;
 
     // The input queue accumulates samples until a full block declared to the plugin is
     // available; the output queue holds processed audio not yet returned to the caller.
@@ -20,14 +22,14 @@ public sealed class Vst3Effect : IDisposable
     private readonly Queue<float> _pendingInput = new();
     private readonly Queue<float> _pendingOutput = new();
 
-    public bool IsLoaded => _plugin?.AudioProcessor is not null;
+    public bool IsLoaded => _plugin is not null;
     public string Path { get; private set; } = "";
     public string DisplayName { get; private set; } = "";
 
     /// <summary>When true, audio passes through the slot unchanged without calling the plugin.</summary>
     public bool Bypassed { get; set; }
 
-    public void Load(string path, double sampleRate)
+    public void Load(string path, double sampleRate, Vst3State? state = null)
     {
         Unload();
         if (string.IsNullOrWhiteSpace(path))
@@ -36,31 +38,18 @@ public sealed class Vst3Effect : IDisposable
             throw new FileNotFoundException("VST3 plugin not found.", path);
 
         // A .vst3/.dll file that doesn't export GetPluginFactory is not a VST3 module
-        // (typically a legacy VST2 plugin): loading it into the native bridge crashes the
-        // whole process, so reject it here with a managed exception.
-        if (File.Exists(path) && !PeModuleInspector.ExportsFunction(path, "GetPluginFactory"))
+        // (typically a legacy VST2 plugin): reject it before loading it into the process.
+        var module = Vst3PluginInstance.ResolveModulePath(path);
+        if (!PeModuleInspector.ExportsFunction(module, "GetPluginFactory"))
         {
             throw new InvalidOperationException(
                 $"The file is not a valid VST3 module (probably a VST2 plugin or another DLL): {path}.");
         }
 
-        const int requestedBlockFrames = 512;
-        var plugin = new Vst3Plugin(path)
-        {
-            PluginType = VstType.VstEffect
-        };
-        plugin.InitializePlugin(requestedBlockFrames, sampleRate, IntPtr.Zero);
-        if (plugin.AudioProcessor is null)
-        {
-            plugin.Dispose();
-            throw new InvalidOperationException(
-                $"Unable to initialize the VST3 plugin: {path}.");
-        }
-
+        var plugin = new Vst3PluginInstance(path, sampleRate, BlockFrames, state?.Component, state?.Controller);
         lock (_sync)
         {
             _plugin = plugin;
-            _blockFrames = plugin.AudioProcessor.managedProcessData.NumSamples;
             _pendingInput.Clear();
             _pendingOutput.Clear();
             Path = path;
@@ -68,50 +57,50 @@ public sealed class Vst3Effect : IDisposable
         }
     }
 
-    public void Process(Span<float> stereoSamples)
+    public unsafe void Process(Span<float> stereoSamples)
     {
         if (Bypassed || stereoSamples.Length == 0)
             return;
 
         // Everything under a single lock: if Unload() (slot removed from the UI) ran
-        // between reading _plugin and PerformProcessData, the audio thread would use an
-        // already destroyed native plugin and crash the process.
+        // between reading _plugin and processing, the audio thread would use an already
+        // destroyed native plugin and crash the process.
         lock (_sync)
         {
             var plugin = _plugin;
-            var blockFrames = _blockFrames;
-            if (plugin?.AudioProcessor is null || blockFrames <= 0)
-                return;
-
-            var processData = plugin.AudioProcessor.managedProcessData;
-            if (processData.Inputs.Length == 0 || processData.Outputs.Length == 0)
-                return;
-
-            var input = processData.Inputs[0].ChannelBuffers32;
-            var output = processData.Outputs[0].ChannelBuffers32;
-            if (input is null || output is null || input.Length == 0 || output.Length == 0)
+            if (plugin is null)
                 return;
 
             foreach (var sample in stereoSamples)
                 _pendingInput.Enqueue(sample);
 
-            while (_pendingInput.Count >= blockFrames * 2)
+            var stereoIn = plugin.InputChannels > 1;
+            var stereoOut = plugin.OutputChannels > 1;
+            while (_pendingInput.Count >= BlockFrames * 2)
             {
-                for (var frame = 0; frame < blockFrames; frame++)
+                float* inLeft = plugin.Input(0), inRight = stereoIn ? plugin.Input(1) : null;
+                for (var frame = 0; frame < BlockFrames; frame++)
                 {
                     var left = _pendingInput.Dequeue();
                     var right = _pendingInput.Dequeue();
-                    input[0][frame] = left;
-                    if (input.Length > 1)
-                        input[1][frame] = right;
+                    if (stereoIn)
+                    {
+                        inLeft[frame] = left;
+                        inRight[frame] = right;
+                    }
+                    else
+                    {
+                        inLeft[frame] = 0.5f * (left + right);
+                    }
                 }
 
-                plugin.AudioProcessor.PerformProcessData();
+                plugin.Process();
 
-                for (var frame = 0; frame < blockFrames; frame++)
+                float* outLeft = plugin.Output(0), outRight = stereoOut ? plugin.Output(1) : outLeft;
+                for (var frame = 0; frame < BlockFrames; frame++)
                 {
-                    _pendingOutput.Enqueue(output[0][frame]);
-                    _pendingOutput.Enqueue(output.Length > 1 ? output[1][frame] : output[0][frame]);
+                    _pendingOutput.Enqueue(outLeft[frame]);
+                    _pendingOutput.Enqueue(outRight[frame]);
                 }
             }
 
@@ -120,49 +109,54 @@ public sealed class Vst3Effect : IDisposable
         }
     }
 
-    public void Dispose() => Unload();
+    // Parameter, state and editor calls run on the UI thread, as VST3 requires for the
+    // edit controller; the VST3 threading model lets them run while the audio thread processes.
 
-    // The plugin's native GUI (Vst3Plugin.ShowEditor -> CreateAndShowEditor) crashes the
-    // process deterministically with this hosting library, so it is never used. Plugins
-    // are edited through a generic parameter panel instead, which only makes managed
-    // calls and never creates native windows.
-    public IReadOnlyList<Vst3ParameterInfo> GetParameters()
+    public IReadOnlyList<Vst3ParameterInfo> GetParameters() => _plugin?.GetParameters() ?? [];
+
+    public void SetParameterNormalized(uint id, double normalizedValue) =>
+        _plugin?.SetParameterNormalized(id, normalizedValue);
+
+    public Vst3State? GetState()
     {
-        lock (_sync)
+        if (_plugin is null)
+            return null;
+        var (component, controller) = _plugin.GetState();
+        return new Vst3State(component, controller);
+    }
+
+    /// <summary>Shows the plugin's own GUI; false when the plugin has none.</summary>
+    public bool ShowEditor(string title, Window owner, Action? closed = null)
+    {
+        if (_plugin is null)
+            return false;
+        if (_editor is not null)
         {
-            if (_plugin is null)
-                return Array.Empty<Vst3ParameterInfo>();
-
-            var count = _plugin.GetParameterCount();
-            var result = new List<Vst3ParameterInfo>(count);
-            for (var index = 0; index < count; index++)
-            {
-                var info = _plugin.GetParameterInfo(index);
-                result.Add(new Vst3ParameterInfo(
-                    info.Id,
-                    info.Title,
-                    info.Units,
-                    info.StepCount,
-                    _plugin.GetParameterNormalized(info.Id)));
-            }
-
-            return result;
+            _editor.Activate();
+            return true;
         }
+
+        _editor = Vst3EditorWindow.Open(_plugin, title, owner);
+        if (_editor is null)
+            return false;
+        _editor.Closed += (_, _) =>
+        {
+            _editor = null;
+            closed?.Invoke();
+        };
+        return true;
     }
 
-    public void SetParameterNormalized(uint id, double normalizedValue)
-    {
-        lock (_sync)
-            _plugin?.SetParameterNormalized(id, normalizedValue);
-    }
+    public void Dispose() => Unload();
 
     public void Unload()
     {
+        // The editor must be detached from the plugin before the plugin is destroyed.
+        _editor?.Close();
         lock (_sync)
         {
             _plugin?.Dispose();
             _plugin = null;
-            _blockFrames = 0;
             _pendingInput.Clear();
             _pendingOutput.Clear();
             Path = "";
