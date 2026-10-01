@@ -2,6 +2,7 @@
 bin/
 obj/
 publish/
+dist/
 *.zip
 
 # IDE / tooling

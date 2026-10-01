@@ -44,3 +44,13 @@ sent to the server over a Shoutcast source connection.
 dotnet build -c Release
 dotnet run
 ```
+
+### Installer
+
+Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php). Produces a single
+`dist\Stedjcast-<version>-Setup.exe` that installs for all users in Program Files.
+
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+ISCC installer.iss
+```
