@@ -30,6 +30,10 @@ Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
+[InstallDelete]
+; Native VST3 bridge shipped up to 0.3, no longer used.
+Type: files; Name: "{app}\Vst3Pont.dll"
+
 [Files]
 Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
