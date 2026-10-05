@@ -80,6 +80,21 @@ public partial class MainWindow : Window
         _windowSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
         _windowSource?.AddHook(WindowMessageHook);
         ApplyMuteShortcut(showErrors: false);
+        _ = ShowUpdateIndicatorAsync();
+    }
+
+    private async Task ShowUpdateIndicatorAsync()
+    {
+        if (await UpdateChecker.FindNewerReleaseAsync() is not { } releaseUrl)
+            return;
+        UpdateLink.NavigateUri = new Uri(releaseUrl);
+        UpdateIndicator.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateLink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        e.Handled = true;
     }
 
     /// <summary>Registers <see cref="AppSettings.MuteShortcut"/> as a global hotkey; false if Windows

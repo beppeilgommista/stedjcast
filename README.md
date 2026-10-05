@@ -22,6 +22,8 @@ sent to the server over a Shoutcast source connection.
   shortcut (default Ctrl+Alt+K).
 - MP3 streaming to Shoutcast v1/v2 with automatic reconnection when the connection drops.
 - Local test mode that records WAV files instead of streaming.
+- A small "Update available" indicator links to the GitHub release page when a newer
+  version is published (checked once at startup).
 - Settings stored in `%LocalAppData%\Stedjcast\settings.json`; the source password is
   encrypted with DPAPI for the current Windows user.
 

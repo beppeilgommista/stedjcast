@@ -10,7 +10,7 @@
     <!-- VST3 hosting calls plugin vtables through function pointers. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
     <Product>Stedjcast</Product>
     <Authors>beppeilgommista</Authors>
     <Description>Stedjcast - Shoutcast web radio broadcaster</Description>

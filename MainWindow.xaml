@@ -195,5 +195,15 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+
+        <!-- Shown only when GitHub has a newer release. -->
+        <StackPanel x:Name="UpdateIndicator" Orientation="Horizontal" Visibility="Collapsed"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,4,0">
+            <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,6,0" VerticalAlignment="Center"/>
+            <TextBlock FontSize="14" VerticalAlignment="Center">
+                <Hyperlink x:Name="UpdateLink" RequestNavigate="UpdateLink_RequestNavigate"
+                           AutomationProperties.Name="Update available, open the release page">Update available</Hyperlink>
+            </TextBlock>
+        </StackPanel>
     </Grid>
 </Window>
